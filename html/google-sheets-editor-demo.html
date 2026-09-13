@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Google Sheets Editor Demo</title>
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    :root {
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #111827;
+      background: #f3f4f6;
+    }
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+    }
+
+    .app {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.08);
+      padding: 24px;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 28px;
+    }
+
+    .muted {
+      color: #6b7280;
+      line-height: 1.5;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 180px;
+      gap: 12px;
+      margin: 18px 0 10px;
+    }
+
+    input, button {
+      font: inherit;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      background: #111827;
+      color: white;
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    button.success {
+      background: #047857;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    #status {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      margin: 14px 0;
+      white-space: pre-wrap;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      margin-top: 16px;
+      max-height: 65vh;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: max-content;
+      min-width: 100%;
+      background: white;
+    }
+
+    th, td {
+      border-right: 1px solid #e5e7eb;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 0;
+      min-width: 120px;
+      height: 38px;
+    }
+
+    th {
+      background: #f9fafb;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: 8px;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    td[contenteditable="true"] {
+      padding: 8px;
+      outline: none;
+    }
+
+    td[contenteditable="true"]:focus {
+      box-shadow: inset 0 0 0 2px #2563eb;
+    }
+
+    .setup {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 12px;
+      padding: 14px;
+      margin: 16px 0;
+    }
+
+    code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    @media (max-width: 700px) {
+      .controls {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>Google Sheets Editor Demo</h1>
+
+    <p class="muted">
+      Sign in with your Google account, paste a Google Sheet URL or spreadsheet ID,
+      load a range, edit cells, and save the changes back to Google Sheets.
+    </p>
+
+    <div class="setup">
+      <strong>Before using this demo:</strong><br><br>
+      1. Create a project in Google Cloud Console.<br>
+      2. Enable the <strong>Google Sheets API</strong>.<br>
+      3. Create an OAuth 2.0 Client ID for a <strong>Web application</strong>.<br>
+      4. Add your GitHub Pages origin, e.g. <code>https://YOURNAME.github.io</code>, to
+         <strong>Authorized JavaScript origins</strong>.<br>
+      5. Replace <code>YOUR_GOOGLE_CLIENT_ID_HERE</code> in this file with your real Client ID.
+    </div>
+
+    <div class="row">
+      <button id="connectBtn">Connect Google Account</button>
+      <button id="signOutBtn" class="secondary" disabled>Clear Access Token</button>
+    </div>
+
+    <div class="controls">
+      <input id="sheetInput"
+             placeholder="Google Sheet URL or Spreadsheet ID" />
+      <input id="rangeInput"
+             value="Sheet1!A1:F20"
+             placeholder="Range, e.g. Sheet1!A1:F20" />
+    </div>
+
+    <div class="row">
+      <button id="loadBtn" disabled>Load Sheet</button>
+      <button id="saveBtn" class="success" disabled>Save Changes</button>
+      <button id="addRowBtn" class="secondary" disabled>Add Row</button>
+      <button id="addColBtn" class="secondary" disabled>Add Column</button>
+    </div>
+
+    <div id="status">Not connected.</div>
+
+    <div class="table-wrap">
+      <table id="sheetTable"></table>
+    </div>
+  </main>
+
+  <script>
+    /*
+      IMPORTANT:
+      Replace the value below with your Google OAuth 2.0 Web Client ID.
+
+      Example:
+      const CLIENT_ID = "1234567890-abcxyz.apps.googleusercontent.com";
+    */
+    const CLIENT_ID = "1085638676531-dujtbsabttgnt7svvt819nhbrchj9rsq.apps.googleusercontent.com";
+
+    // This scope lets the signed-in user read and edit spreadsheets
+    // that their Google account already has permission to access.
+    const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
+
+    let tokenClient;
+    let accessToken = "";
+    let currentSpreadsheetId = "";
+    let currentRange = "";
+    let grid = [];
+
+    const connectBtn = document.getElementById("connectBtn");
+    const signOutBtn = document.getElementById("signOutBtn");
+    const loadBtn = document.getElementById("loadBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const addRowBtn = document.getElementById("addRowBtn");
+    const addColBtn = document.getElementById("addColBtn");
+    const sheetInput = document.getElementById("sheetInput");
+    const rangeInput = document.getElementById("rangeInput");
+    const statusBox = document.getElementById("status");
+    const table = document.getElementById("sheetTable");
+
+    function setStatus(message) {
+      statusBox.textContent = message;
+    }
+
+    function waitForGoogleIdentity() {
+      return new Promise((resolve, reject) => {
+        let tries = 0;
+        const timer = setInterval(() => {
+          tries++;
+          if (window.google?.accounts?.oauth2) {
+            clearInterval(timer);
+            resolve();
+          } else if (tries > 100) {
+            clearInterval(timer);
+            reject(new Error("Google Identity Services did not load."));
+          }
+        }, 100);
+      });
+    }
+
+    async function initGoogleAuth() {
+      await waitForGoogleIdentity();
+
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: (response) => {
+          if (response.error) {
+            console.error(response);
+            setStatus("Google authorization failed: " + response.error);
+            return;
+          }
+
+          accessToken = response.access_token;
+          connectBtn.textContent = "Reconnect Google Account";
+          signOutBtn.disabled = false;
+          loadBtn.disabled = false;
+          setStatus("Connected to Google. You can now load a spreadsheet.");
+        }
+      });
+    }
+
+    connectBtn.addEventListener("click", async () => {
+      if (CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID_HERE")) {
+        alert("Please replace YOUR_GOOGLE_CLIENT_ID_HERE with your real Google OAuth Client ID first.");
+        return;
+      }
+
+      if (!tokenClient) {
+        await initGoogleAuth();
+      }
+
+      tokenClient.requestAccessToken({
+        prompt: accessToken ? "" : "consent"
+      });
+    });
+
+    signOutBtn.addEventListener("click", () => {
+      if (accessToken && window.google?.accounts?.oauth2) {
+        google.accounts.oauth2.revoke(accessToken, () => {});
+      }
+
+      accessToken = "";
+      currentSpreadsheetId = "";
+      currentRange = "";
+      grid = [];
+      table.innerHTML = "";
+
+      connectBtn.textContent = "Connect Google Account";
+      signOutBtn.disabled = true;
+      loadBtn.disabled = true;
+      saveBtn.disabled = true;
+      addRowBtn.disabled = true;
+      addColBtn.disabled = true;
+
+      setStatus("Access token cleared.");
+    });
+
+    function extractSpreadsheetId(value) {
+      const text = value.trim();
+
+      // Accept a normal Google Sheets URL:
+      // https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit
+      const match = text.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (match) return match[1];
+
+      // Or accept a raw spreadsheet ID.
+      if (/^[a-zA-Z0-9-_]+$/.test(text)) {
+        return text;
+      }
+
+      return "";
+    }
+
+    async function googleApiFetch(url, options = {}) {
+      if (!accessToken) {
+        throw new Error("Not connected to Google.");
+      }
+
+      const headers = new Headers(options.headers || {});
+      headers.set("Authorization", "Bearer " + accessToken);
+
+      const response = await fetch(url, {
+        ...options,
+        headers
+      });
+
+      if (response.status === 401) {
+        accessToken = "";
+        loadBtn.disabled = true;
+        saveBtn.disabled = true;
+        addRowBtn.disabled = true;
+        addColBtn.disabled = true;
+        throw new Error("Your Google access token expired. Click Connect Google Account again.");
+      }
+
+      if (!response.ok) {
+        let message = `${response.status} ${response.statusText}`;
+
+        try {
+          const errorJson = await response.json();
+          message = errorJson?.error?.message || message;
+        } catch (_) {}
+
+        throw new Error(message);
+      }
+
+      return response;
+    }
+
+    loadBtn.addEventListener("click", loadSheet);
+
+    async function loadSheet() {
+      const spreadsheetId = extractSpreadsheetId(sheetInput.value);
+      const range = rangeInput.value.trim();
+
+      if (!spreadsheetId) {
+        setStatus("Please enter a valid Google Sheet URL or spreadsheet ID.");
+        return;
+      }
+
+      if (!range) {
+        setStatus("Please enter a range such as Sheet1!A1:F20.");
+        return;
+      }
+
+      currentSpreadsheetId = spreadsheetId;
+      currentRange = range;
+
+      setStatus("Loading sheet...");
+
+      try {
+        const url =
+          `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}` +
+          `/values/${encodeURIComponent(range)}?majorDimension=ROWS`;
+
+        const response = await googleApiFetch(url);
+        const data = await response.json();
+
+        grid = normalizeGrid(data.values || []);
+        renderTable();
+
+        saveBtn.disabled = false;
+        addRowBtn.disabled = false;
+        addColBtn.disabled = false;
+
+        setStatus(
+          `Loaded ${grid.length} row(s) × ${grid[0]?.length || 0} column(s).\n` +
+          `Range: ${data.range || range}`
+        );
+      } catch (err) {
+        console.error(err);
+        setStatus("Load failed: " + err.message);
+      }
+    }
+
+    function normalizeGrid(values) {
+      // Give the editor a useful empty size when no values exist.
+      if (!values.length) {
+        return Array.from({ length: 10 }, () => Array(6).fill(""));
+      }
+
+      const maxCols = Math.max(1, ...values.map(row => row.length));
+      const minCols = Math.max(maxCols, 6);
+
+      return values.map(row => {
+        const copy = [...row];
+        while (copy.length < minCols) copy.push("");
+        return copy;
+      });
+    }
+
+    function renderTable() {
+      table.innerHTML = "";
+
+      if (!grid.length) return;
+
+      const colCount = Math.max(1, ...grid.map(row => row.length));
+
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+
+      for (let c = 0; c < colCount; c++) {
+        const th = document.createElement("th");
+        th.textContent = columnName(c);
+        headRow.appendChild(th);
+      }
+
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+
+      grid.forEach((row, r) => {
+        while (row.length < colCount) row.push("");
+
+        const tr = document.createElement("tr");
+
+        row.forEach((value, c) => {
+          const td = document.createElement("td");
+          td.contentEditable = "true";
+          td.textContent = value ?? "";
+
+          td.addEventListener("input", () => {
+            grid[r][c] = td.textContent;
+          });
+
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+    }
+
+    function columnName(index) {
+      let n = index + 1;
+      let name = "";
+
+      while (n > 0) {
+        const remainder = (n - 1) % 26;
+        name = String.fromCharCode(65 + remainder) + name;
+        n = Math.floor((n - 1) / 26);
+      }
+
+      return name;
+    }
+
+    addRowBtn.addEventListener("click", () => {
+      const cols = grid[0]?.length || 6;
+      grid.push(Array(cols).fill(""));
+      renderTable();
+    });
+
+    addColBtn.addEventListener("click", () => {
+      if (!grid.length) {
+        grid = Array.from({ length: 10 }, () => [""]);
+      } else {
+        grid.forEach(row => row.push(""));
+      }
+
+      renderTable();
+    });
+
+    saveBtn.addEventListener("click", saveSheet);
+
+    async function saveSheet() {
+      if (!currentSpreadsheetId || !currentRange) {
+        setStatus("Load a spreadsheet first.");
+        return;
+      }
+
+      setStatus("Saving changes...");
+
+      try {
+        const url =
+          `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(currentSpreadsheetId)}` +
+          `/values/${encodeURIComponent(currentRange)}` +
+          `?valueInputOption=USER_ENTERED`;
+
+        const response = await googleApiFetch(url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            range: currentRange,
+            majorDimension: "ROWS",
+            values: grid
+          })
+        });
+
+        const data = await response.json();
+
+        setStatus(
+          "Saved successfully.\n" +
+          `Updated range: ${data.updatedRange || currentRange}\n` +
+          `Updated cells: ${data.updatedCells ?? "unknown"}`
+        );
+      } catch (err) {
+        console.error(err);
+        setStatus("Save failed: " + err.message);
+      }
+    }
+
+    // Initialize after page load.
+    window.addEventListener("load", async () => {
+      try {
+        await initGoogleAuth();
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message);
+      }
+    });
+  </script>
+</body>
+</html>
