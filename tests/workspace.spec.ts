@@ -7,6 +7,8 @@ test.beforeEach(async ({ page }) => {
       contentType: "application/javascript",
       body: `window.google = { accounts: { oauth2: {
       initTokenClient: config => ({ requestAccessToken: () => {
+        window.authCalls = (window.authCalls || 0) + 1;
+        if (window.deferAuth) { window.completeAuth = () => config.callback({ access_token: "late-token", expires_in: 3600, scope: config.scope }); return; }
         if (window.authError) config.error_callback({ type: 'popup_closed' });
         else config.callback({ access_token: 'test-token', expires_in: 3600, scope: config.scope });
       } }),
@@ -82,7 +84,7 @@ test("empty results and expired session", async ({ page }) => {
   expired = true;
   await page.getByRole("button", { name: "List Google Sheets" }).click();
   await expect(page.getByRole("alert")).toContainText("session expired");
-  await expect(page.getByRole("button", { name: "Log out" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Log out" })).toBeEnabled();
 });
 
 test("cancelled login and denied permissions can be retried", async ({
@@ -145,4 +147,119 @@ test("API errors allow retry", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "List Google Sheets" }),
   ).toBeEnabled();
+});
+
+test("persists login on reload until logout", async ({ page }) => {
+  await page.goto("./");
+  await page.getByRole("button", { name: "Log in with Google" }).click();
+  expect(
+    await page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem("hsi-pm.google-auth.v1")!).accessToken,
+    ),
+  ).toBe("test-token");
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "List Google Sheets" }),
+  ).toBeEnabled();
+  expect(await page.evaluate("window.authCalls || 0")).toBe(0);
+  await page.getByRole("button", { name: "Log out" }).click();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "List Google Sheets" }),
+  ).toBeDisabled();
+});
+
+test("renews on expiry and stops renewing after logout", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("./");
+  await page.getByRole("button", { name: "Log in with Google" }).click();
+  await page.clock.fastForward(3600001);
+  await expect.poll(() => page.evaluate("window.authCalls")).toBe(2);
+  await expect(
+    page.getByRole("button", { name: "List Google Sheets" }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Log out" }).click();
+  await page.clock.fastForward(3600001);
+  expect(await page.evaluate("window.authCalls")).toBe(2);
+});
+
+test("blocked renewal shows reconnect without a retry loop", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto("./");
+  await page.getByRole("button", { name: "Log in with Google" }).click();
+  await page.evaluate("window.authError = true");
+  await page.clock.fastForward(3600001);
+  await expect(page.getByRole("alert")).toContainText("Reconnect Google");
+  await expect(
+    page.getByRole("button", { name: "Reconnect Google" }),
+  ).toBeEnabled();
+  await page.clock.fastForward(120000);
+  expect(await page.evaluate("window.authCalls")).toBe(2);
+  await page.evaluate("window.authError = false");
+  await page.getByRole("button", { name: "Reconnect Google" }).click();
+  await expect(
+    page.getByRole("button", { name: "List Google Sheets" }),
+  ).toBeEnabled();
+});
+
+test("expired saved session renews on reload", async ({ page }) => {
+  await page.goto("./");
+  await page.getByRole("button", { name: "Log in with Google" }).click();
+  await page.evaluate(() => {
+    const value = JSON.parse(localStorage.getItem("hsi-pm.google-auth.v1")!);
+    value.expiresAt = Date.now() - 1;
+    localStorage.setItem("hsi-pm.google-auth.v1", JSON.stringify(value));
+  });
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "List Google Sheets" }),
+  ).toBeEnabled();
+  expect(await page.evaluate("window.authCalls")).toBe(1);
+});
+
+test("logout ignores a late OAuth callback and syncs other tabs", async ({
+  page,
+  context,
+}) => {
+  await page.goto("./");
+  await page.getByRole("button", { name: "Log in with Google" }).click();
+  const other = await context.newPage();
+  await other.goto("/hsi-pm/");
+  await expect(
+    other.getByRole("button", { name: "List Google Sheets" }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(
+    other.getByRole("button", { name: "List Google Sheets" }),
+  ).toBeDisabled();
+  await page.evaluate("window.deferAuth = true");
+  await page.getByRole("button", { name: "Log in with Google" }).click();
+  await page.getByRole("button", { name: "Log out" }).click();
+  await page.evaluate("window.completeAuth()");
+  await expect(
+    page.getByRole("button", { name: "List Google Sheets" }),
+  ).toBeDisabled();
+  expect(
+    await page.evaluate(() => localStorage.getItem("hsi-pm.google-auth.v1")),
+  ).toBeNull();
+});
+
+test("401 renews once and retries the file request", async ({ page }) => {
+  let calls = 0;
+  await page.route("https://www.googleapis.com/drive/v3/files?**", (route) => {
+    calls++;
+    return route.fulfill({
+      status: calls === 1 ? 401 : 200,
+      json: { files: [{ id: "retry", name: "Renewed file" }] },
+    });
+  });
+  await page.goto("./");
+  await page.getByRole("button", { name: "Log in with Google" }).click();
+  await page.getByRole("button", { name: "List Google Sheets" }).click();
+  await expect(page.getByRole("link", { name: "Renewed file" })).toBeVisible();
+  expect(calls).toBe(2);
+  expect(await page.evaluate("window.authCalls")).toBe(2);
 });

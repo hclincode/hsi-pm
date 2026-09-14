@@ -29,7 +29,11 @@ For iPhone testing, serve the app at an HTTPS origin registered on the OAuth cli
 
 ## Session behavior
 
-Access tokens stay in memory, never in local storage. Reloading or logging out clears the local session. Logout does not sign out of Google in other tabs or revoke the account's consent. Expired tokens require another login. File requests are paginated and aborted on logout so late responses cannot restore a previous session's files.
+The app stores the access token, expiry, scope, and client ID in `localStorage` under `hsi-pm.google-auth.v1`. Login survives page reloads and browser restarts until logout (or browser data is cleared). Logout removes this record, cancels pending work, and propagates to other open tabs. Browser storage failures fall back to a page-only session. Stored tokens are accessible to JavaScript on the same origin, including other apps on the same GitHub Pages domain.
+
+At expiry, or when reopening an expired session, the app attempts to obtain another token through Google Identity Services. Returning to a backgrounded tab also checks expiry. A Drive 401 triggers one renewal and one retry. Expired tokens are never reused. If Google requires interaction or blocks the popup, the remembered session remains and a **Reconnect Google** button lets you continue; automatic attempts do not loop.
+
+This is browser token renewal, not a refresh-token exchange. Google Identity Services uses a popup and does not guarantee silent renewal without a user gesture. Truly unattended refresh requires a backend using Google's authorization-code flow with server-side refresh-token storage. Logout only clears this app's session; it does not sign out of Google in other tabs or revoke consent.
 
 ## Build and test
 

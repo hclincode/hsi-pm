@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  DRIVE_SCOPE,
-  listSheets,
-  loadGoogleIdentity,
-  SessionExpiredError,
-  type SheetFile,
-} from "./google";
+import { listSheets, SessionExpiredError, type SheetFile } from "./google";
+
+import { useGoogleAuth } from "./useGoogleAuth";
 
 function SheetIcon() {
   return (
@@ -26,100 +22,36 @@ function SheetIcon() {
 }
 
 export default function App() {
-  const [ready, setReady] = useState(false);
-  const [token, setToken] = useState("");
-  const [authenticating, setAuthenticating] = useState(false);
+  const {
+    token,
+    remembered,
+    ready,
+    authenticating,
+    error,
+    setError,
+    logout,
+    login,
+    getAccessToken,
+    invalidate,
+  } = useGoogleAuth();
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<SheetFile[] | null>(null);
-  const [error, setError] = useState("");
-  const client = useRef<google.accounts.oauth2.TokenClient | null>(null);
-  const expiry = useRef<number | undefined>(undefined);
   const request = useRef<AbortController | null>(null);
 
-  function clearSession() {
-    window.clearTimeout(expiry.current);
-    request.current?.abort();
-    request.current = null;
-    setToken("");
-    setFiles(null);
-    setLoading(false);
-    setAuthenticating(false);
-  }
-
   useEffect(() => {
-    let active = true;
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      setError(
-        "Google login is not configured. Set VITE_GOOGLE_CLIENT_ID in .env.local and restart the app.",
-      );
-      return;
-    }
-    loadGoogleIdentity()
-      .then(() => {
-        if (!active) return;
-        client.current = google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: DRIVE_SCOPE,
-          include_granted_scopes: false,
-          callback: (response) => {
-            if (!active) return;
-            setAuthenticating(false);
-            if (response.error || !response.access_token) {
-              setError("Google login was not completed. Please try again.");
-              return;
-            }
-            if (
-              !google.accounts.oauth2.hasGrantedAllScopes(response, DRIVE_SCOPE)
-            ) {
-              setError(
-                "Allow file metadata access to list your Google Sheets. Then try logging in again.",
-              );
-              return;
-            }
-            clearSession();
-            setToken(response.access_token);
-            setError("");
-            expiry.current = window.setTimeout(
-              () => {
-                clearSession();
-                setError("Your session expired. Log in again to continue.");
-              },
-              Math.max(0, Number(response.expires_in) * 1000 - 30000),
-            );
-          },
-          error_callback: (response) => {
-            if (!active) return;
-            setAuthenticating(false);
-            setError(
-              response.type === "popup_closed"
-                ? "Login was cancelled. You can try again."
-                : "Google login could not open. Allow popups for this site and try again.",
-            );
-          },
-        });
-        setReady(true);
-      })
-      .catch((reason: Error) => {
-        if (active) setError(reason.message);
-      });
-    return () => {
-      active = false;
-      window.clearTimeout(expiry.current);
+    if (!remembered) {
       request.current?.abort();
-    };
-  }, []);
-
-  function login() {
-    setError("");
-    setAuthenticating(true);
-    try {
-      client.current!.requestAccessToken({ prompt: "select_account" });
-    } catch {
-      setAuthenticating(false);
-      setError("Google login could not open. Please try again.");
+      request.current = null;
+      setFiles(null);
+      setLoading(false);
     }
-  }
+  }, [remembered]);
+  useEffect(
+    () => () => {
+      request.current?.abort();
+    },
+    [],
+  );
 
   async function loadFiles() {
     const controller = new AbortController();
@@ -129,11 +61,25 @@ export default function App() {
     setError("");
     setFiles(null);
     try {
-      const result = await listSheets(token, controller.signal);
+      let accessToken = await getAccessToken();
+      if (controller.signal.aborted) return;
+      let result: SheetFile[];
+      try {
+        result = await listSheets(accessToken, controller.signal);
+      } catch (reason) {
+        if (
+          !(reason instanceof SessionExpiredError) ||
+          controller.signal.aborted
+        )
+          throw reason;
+        accessToken = await getAccessToken(true);
+        if (controller.signal.aborted) return;
+        result = await listSheets(accessToken, controller.signal);
+      }
       if (!controller.signal.aborted) setFiles(result);
     } catch (reason) {
       if (controller.signal.aborted) return;
-      if (reason instanceof SessionExpiredError) clearSession();
+      if (reason instanceof SessionExpiredError) invalidate();
       setError(
         reason instanceof Error
           ? reason.message
@@ -150,7 +96,11 @@ export default function App() {
   return (
     <div className="shell">
       <header className="topbar">
-        <a className="brand" href={import.meta.env.BASE_URL} aria-label="HSI home">
+        <a
+          className="brand"
+          href={import.meta.env.BASE_URL}
+          aria-label="HSI home"
+        >
           <span className="brand-mark">h.</span>
           <span>
             HSI <span className="brand-divider">/</span>{" "}
@@ -179,7 +129,13 @@ export default function App() {
             </span>
             <span className={`badge ${token ? "connected" : ""}`}>
               <span />
-              {token ? "Connected" : "Not connected"}
+              {authenticating
+                ? "Connecting…"
+                : token
+                  ? "Connected"
+                  : remembered
+                    ? "Reconnect needed"
+                    : "Not connected"}
             </span>
           </div>
           <h2 id="connection-title">Your Google account</h2>
@@ -190,16 +146,17 @@ export default function App() {
               disabled={!ready || !!token || authenticating}
               onClick={login}
             >
-              {authenticating ? "Logging in…" : "Log in with Google"}
+              {authenticating
+                ? "Connecting…"
+                : remembered
+                  ? "Reconnect Google"
+                  : "Log in with Google"}
               <span aria-hidden="true">↗</span>
             </button>
             <button
               className="secondary"
-              disabled={!token}
-              onClick={() => {
-                clearSession();
-                setError("");
-              }}
+              disabled={!remembered && !authenticating}
+              onClick={logout}
             >
               Log out
             </button>
