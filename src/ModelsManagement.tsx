@@ -13,18 +13,6 @@ import {
   type TokenProvider,
 } from "./modelStore";
 
-const LINK_KEY = "hsi-pm.models-spreadsheet";
-function savedLink() {
-  try {
-    return (
-      localStorage.getItem(LINK_KEY) ||
-      import.meta.env.VITE_MODELS_SPREADSHEET_URL ||
-      ""
-    );
-  } catch {
-    return import.meta.env.VITE_MODELS_SPREADSHEET_URL || "";
-  }
-}
 const newField = (): ModelField => ({
   fieldName: "",
   candidates: [{ name: "", shortName: "" }],
@@ -35,13 +23,18 @@ export default function ModelsManagement({
   ready,
   authenticating,
   getAccessToken,
+  spreadsheetLink,
+  onSpreadsheetSelected,
 }: {
   remembered: boolean;
   ready: boolean;
   authenticating: boolean;
   getAccessToken: TokenProvider;
+  spreadsheetLink: string;
+  onSpreadsheetSelected: (link: string) => void;
 }) {
-  const [link, setLink] = useState(savedLink);
+  const [link, setLink] = useState(spreadsheetLink);
+  useEffect(() => setLink(spreadsheetLink), [spreadsheetLink]);
   const [snapshot, setSnapshot] = useState<ModelSnapshot | null>(null);
   const [groups, setGroups] = useState<ModelGroup[]>([]);
   const [selected, setSelected] = useState("");
@@ -106,11 +99,7 @@ export default function ModelsManagement({
       setGroups(structuredClone(loaded.groups));
       setSelected(loaded.groups[0]?.id ?? "");
       setChoices([]);
-      try {
-        localStorage.setItem(LINK_KEY, link.trim());
-      } catch {
-        /* The link remains usable in this page. */
-      }
+      onSpreadsheetSelected(link.trim());
       setNotice(
         loaded.sheetId === null
           ? "Ready. The model-management sheet will be created when you save."

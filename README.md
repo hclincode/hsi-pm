@@ -1,6 +1,6 @@
 # HSI sales workspace
 
-A responsive React + TypeScript frontend built with Vite. Supports persistent Google login, logout, spreadsheet file listing, and model group management backed by Google Sheets. Sales order features can be added once their requirements are defined.
+A responsive React + TypeScript frontend built with Vite. Supports persistent Google login, logout, spreadsheet file listing, model group management, and series number registration backed by Google Sheets. Sales order features can be added once their requirements are defined.
 
 ## Run locally
 
@@ -71,6 +71,39 @@ The reader also accepts `name` in place of `fieldName` for compatibility with th
 
 Saves atomically update managed cells A:D, including clearing deleted group rows, using literal string values (never formulas). Other worksheets and columns are untouched. Unrecognized sheet contents are rejected rather than overwritten. The app re-reads data before saving and reports intervening edits while retaining the draft. Google Sheets does not provide a conditional-write transaction, so simultaneous saves between that check and the write remain last-writer-wins. Avoid editing the same catalog simultaneously from multiple sessions.
 
+## Series number management
+
+Open **Series number management** (`/hsi-pm/#series`). It shares the spreadsheet last successfully loaded in Models management, including the remembered link and optional `VITE_MODELS_SPREADSHEET_URL` default. Changing the selected spreadsheet clears the old series catalog and pending entry. Click **Load series catalog** to load saved model groups and existing series rows.
+
+To add a series:
+
+1. Choose a saved model group.
+2. Choose a candidate for **every** field, in the order defined by the group. To enter a value outside the candidates, choose **Custom value…** and supply a display name and printable ASCII short name without spaces. Custom values are saved with the series entry, without changing the group's candidate definitions.
+3. Keep the generated series number, click **Generate another**, or overwrite it. The full name updates live at every step. For group `mgn`, blue (`b`), size 16cm (`16`), and `Ab23Cd45`, the result is **mgn-b16-Ab23Cd45**. The group prefix appears once.
+4. Click **Save new series**. The app appends the row and verifies it by reading the sheet again. The creation and modification times are equal on creation. It then generates another number for the next entry.
+
+Generated numbers use cryptographic randomness, are exactly eight characters, and use `[a-zA-Z0-9]` excluding `0`, `O`, `l`, `i`, `I`, `w`, and `W`. Manual numbers can use 1–32 printable ASCII characters, including those excluded from generation and spaces (but not only spaces). Manual values are preserved exactly. Series-number uniqueness is case-sensitive, global across all groups in this worksheet, and independent of the active list filter.
+
+The saved list can be filtered by model group and is always sorted by **modification time descending**. Historical groups remain available in the filter even if subsequently removed from Models management. Records retain their model names and field values as they were when created. There are no edit or delete actions.
+
+The app creates `series-number-management` on the first save if missing, using these columns:
+
+| Column | Header                | Value                                                                     |
+| ------ | --------------------- | ------------------------------------------------------------------------- |
+| A      | `createdAt`           | Creation time, ISO 8601 UTC                                               |
+| B      | `modifiedAt`          | Modification time, ISO 8601 UTC                                           |
+| C      | `modelGroupName`      | Group display name                                                        |
+| D      | `modelShortName`      | Concatenated ordered field short names, e.g. `b16`                        |
+| E      | `seriesNumber`        | Unique series number                                                      |
+| F      | `fullSeriesName`      | Group short name + model short name + series number, separated by hyphens |
+| G      | `modelGroupId`        | Stable group ID for filtering                                             |
+| H      | `modelGroupShortName` | Group short name at creation                                              |
+| I      | `fieldsJson`          | Ordered snapshots of `{fieldName, name, shortName}`                       |
+
+Uniqueness is checked against the loaded, unfiltered rows and again against a fresh read immediately before saving. The group definition is also rechecked before saving to prevent registering against outdated fields. Writes append literal string cells and do not overwrite existing rows or treat custom values as formulas. After saving, the app reads the rows back and checks for duplicates. Failed or uncertain writes preserve the pending number: reload to inspect the saved catalog before retrying.
+
+Web Locks serialize saves across tabs on the same browser origin where supported. Google Sheets has no server-side uniqueness constraint or atomic check-and-append operation, so simultaneous writes from separate browsers can still race. A strict global guarantee would need a backend with a lock or unique database constraint. Existing duplicate or malformed rows block new registrations until corrected in Google Sheets.
+
 ## Session behavior
 
 The app stores the access token, expiry, scope, and client ID in `localStorage` under `hsi-pm.google-auth.v1`. Login survives page reloads and browser restarts until logout (or browser data is cleared). Logout removes this record, cancels pending work, and propagates to other open tabs. Browser storage failures fall back to a page-only session. Stored tokens are accessible to JavaScript on the same origin, including other apps on the same GitHub Pages domain.
@@ -106,7 +139,11 @@ Do not publish the repository root directly: its `index.html` loads TypeScript s
 - `src/google.ts`: Google Identity loading and paginated Drive file listing.
 - `src/ModelsManagement.tsx`: model group editor and live code preview.
 - `src/models.ts`: model schema, validation, naming, and row serialization.
-- `src/modelStore.ts`: Sheets loading, conflict checks, and atomic saves.
+- `src/modelStore.ts`: model loading, conflict checks, and atomic saves.
+- `src/SeriesManagement.tsx`: series creation form, filtering, and responsive record list.
+- `src/series.ts` and `src/seriesStore.ts`: number generation, validation, serialization, uniqueness checks, and append-only Sheets writes.
+- `src/sheetsApi.ts`: shared Sheets API requests with token renewal on 401.
+- `src/spreadsheetLink.ts`: shared saved spreadsheet selection.
 - `src/styles.css`: desktop and mobile layout, safe-area padding, keyboard focus, and reduced-motion support.
 - `examples/`: original standalone demo, retained for reference.
 

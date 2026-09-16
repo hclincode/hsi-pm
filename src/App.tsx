@@ -2,8 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { listSheets, SessionExpiredError, type SheetFile } from "./google";
 
 import ModelsManagement from "./ModelsManagement";
-
+import SeriesManagement from "./SeriesManagement";
+import { savedSpreadsheetLink, SPREADSHEET_LINK_KEY } from "./spreadsheetLink";
 import { useGoogleAuth } from "./useGoogleAuth";
+
+function currentPage() {
+  return window.location.hash === "#models"
+    ? "models"
+    : window.location.hash === "#series"
+      ? "series"
+      : "workspace";
+}
 
 function SheetIcon() {
   return (
@@ -36,14 +45,28 @@ export default function App() {
     getAccessToken,
     invalidate,
   } = useGoogleAuth();
-  const [page, setPage] = useState(() =>
-    window.location.hash === "#models" ? "models" : "workspace",
-  );
+  const [page, setPage] = useState(currentPage);
+  const [spreadsheetLink, setSpreadsheetLink] = useState(savedSpreadsheetLink);
+  function selectSpreadsheet(link: string) {
+    setSpreadsheetLink(link);
+    try {
+      localStorage.setItem(SPREADSHEET_LINK_KEY, link);
+    } catch {
+      /* Keep the shared link in memory. */
+    }
+  }
   useEffect(() => {
-    const navigate = () =>
-      setPage(window.location.hash === "#models" ? "models" : "workspace");
+    const navigate = () => setPage(currentPage());
+    const syncLink = (event: StorageEvent) => {
+      if (event.key === SPREADSHEET_LINK_KEY || event.key === null)
+        setSpreadsheetLink(savedSpreadsheetLink());
+    };
     window.addEventListener("hashchange", navigate);
-    return () => window.removeEventListener("hashchange", navigate);
+    window.addEventListener("storage", syncLink);
+    return () => {
+      window.removeEventListener("hashchange", navigate);
+      window.removeEventListener("storage", syncLink);
+    };
   }, []);
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<SheetFile[] | null>(null);
@@ -130,6 +153,9 @@ export default function App() {
         <a href="#models" aria-current={page === "models" ? "page" : undefined}>
           Models management
         </a>
+        <a href="#series" aria-current={page === "series" ? "page" : undefined}>
+          Series number management
+        </a>
       </nav>
       {error && (
         <div className="error" role="alert">
@@ -139,7 +165,19 @@ export default function App() {
       <main>
         <div className="intro">
           <span className="eyebrow">YOUR WORKSPACE</span>
-          {page === "models" ? (
+          {page === "series" ? (
+            <>
+              <h1>
+                Every item.
+                <br />
+                <span>Uniquely yours.</span>
+              </h1>
+              <p>
+                Choose a model, assign a series number, and keep a record of
+                each item in Google Sheets.
+              </p>
+            </>
+          ) : page === "models" ? (
             <>
               <h1>
                 Your goods.
@@ -303,6 +341,17 @@ export default function App() {
         </section>
         <div className="models-container" hidden={page !== "models"}>
           <ModelsManagement
+            remembered={remembered}
+            ready={ready}
+            authenticating={authenticating}
+            getAccessToken={getAccessToken}
+            spreadsheetLink={spreadsheetLink}
+            onSpreadsheetSelected={selectSpreadsheet}
+          />
+        </div>
+        <div className="models-container" hidden={page !== "series"}>
+          <SeriesManagement
+            spreadsheetLink={spreadsheetLink}
             remembered={remembered}
             ready={ready}
             authenticating={authenticating}
