@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { listSheets, SessionExpiredError, type SheetFile } from "./google";
 
+import ModelsManagement from "./ModelsManagement";
+
 import { useGoogleAuth } from "./useGoogleAuth";
 
 function SheetIcon() {
@@ -34,6 +36,15 @@ export default function App() {
     getAccessToken,
     invalidate,
   } = useGoogleAuth();
+  const [page, setPage] = useState(() =>
+    window.location.hash === "#models" ? "models" : "workspace",
+  );
+  useEffect(() => {
+    const navigate = () =>
+      setPage(window.location.hash === "#models" ? "models" : "workspace");
+    window.addEventListener("hashchange", navigate);
+    return () => window.removeEventListener("hashchange", navigate);
+  }, []);
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<SheetFile[] | null>(null);
   const request = useRef<AbortController | null>(null);
@@ -109,18 +120,50 @@ export default function App() {
         </a>
         <span className="edition">GOOGLE SHEETS EDITION</span>
       </header>
+      <nav className="page-tabs" aria-label="Workspace pages">
+        <a
+          href="#workspace"
+          aria-current={page === "workspace" ? "page" : undefined}
+        >
+          Workspace
+        </a>
+        <a href="#models" aria-current={page === "models" ? "page" : undefined}>
+          Models management
+        </a>
+      </nav>
+      {error && (
+        <div className="error" role="alert">
+          {error}
+        </div>
+      )}
       <main>
         <div className="intro">
           <span className="eyebrow">YOUR WORKSPACE</span>
-          <h1>
-            A simple start.
-            <br />
-            <span>Everything connected.</span>
-          </h1>
-          <p>
-            Connect your Google account to bring your spreadsheets into your
-            sales workspace.
-          </p>
+          {page === "models" ? (
+            <>
+              <h1>
+                Your goods.
+                <br />
+                <span>Defined your way.</span>
+              </h1>
+              <p>
+                Organize model groups, choose their attributes, and keep your
+                catalog in Google Sheets.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1>
+                A simple start.
+                <br />
+                <span>Everything connected.</span>
+              </h1>
+              <p>
+                Connect your Google account to bring your spreadsheets into your
+                sales workspace.
+              </p>
+            </>
+          )}
         </div>
         <section className="connection" aria-labelledby="connection-title">
           <div className="connection-heading">
@@ -166,6 +209,7 @@ export default function App() {
           </div>
         </section>
         <section
+          hidden={page !== "workspace"}
           className="sheets"
           aria-labelledby="sheets-title"
           aria-busy={loading}
@@ -187,11 +231,6 @@ export default function App() {
               {loading ? "Loading…" : "List Google Sheets"}
             </button>
           </div>
-          {error && (
-            <div className="error" role="alert">
-              {error}
-            </div>
-          )}
           <div role="status" aria-live="polite" className="sr-only">
             {loading
               ? "Loading spreadsheets."
@@ -262,6 +301,14 @@ export default function App() {
             </div>
           )}
         </section>
+        <div className="models-container" hidden={page !== "models"}>
+          <ModelsManagement
+            remembered={remembered}
+            ready={ready}
+            authenticating={authenticating}
+            getAccessToken={getAccessToken}
+          />
+        </div>
       </main>
       <footer>
         <span>HSI · Sales workspace</span>
