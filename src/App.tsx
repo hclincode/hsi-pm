@@ -11,7 +11,9 @@ function currentPage() {
     ? "models"
     : window.location.hash === "#series"
       ? "series"
-      : "workspace";
+      : window.location.hash === "#bulk-series"
+        ? "bulk-series"
+        : "workspace";
 }
 
 function SheetIcon() {
@@ -156,6 +158,12 @@ export default function App() {
         <a href="#series" aria-current={page === "series" ? "page" : undefined}>
           Series number management
         </a>
+        <a
+          href="#bulk-series"
+          aria-current={page === "bulk-series" ? "page" : undefined}
+        >
+          Bulk generate series number
+        </a>
       </nav>
       {error && (
         <div className="error" role="alert">
@@ -165,7 +173,7 @@ export default function App() {
       <main>
         <div className="intro">
           <span className="eyebrow">YOUR WORKSPACE</span>
-          {page === "series" ? (
+          {page === "series" || page === "bulk-series" ? (
             <>
               <h1>
                 Every item.
@@ -351,6 +359,16 @@ export default function App() {
         </div>
         <div className="models-container" hidden={page !== "series"}>
           <SeriesManagement
+            spreadsheetLink={spreadsheetLink}
+            remembered={remembered}
+            ready={ready}
+            authenticating={authenticating}
+            getAccessToken={getAccessToken}
+          />
+        </div>
+        <div className="models-container" hidden={page !== "bulk-series"}>
+          <SeriesManagement
+            bulk
             spreadsheetLink={spreadsheetLink}
             remembered={remembered}
             ready={ready}

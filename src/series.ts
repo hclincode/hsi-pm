@@ -189,3 +189,37 @@ export function filterSeries(rows: SeriesRow[], groupId: string): SeriesRow[] {
         a.seriesNumber.localeCompare(b.seriesNumber),
     );
 }
+
+export function validateBatchQuantity(quantity: number): string | null {
+  return Number.isInteger(quantity) && quantity >= 1 && quantity <= 20
+    ? null
+    : "Enter a whole-number quantity from 1 to 20.";
+}
+export function generateSeriesBatch(
+  quantity: number,
+  existing: Iterable<string> = [],
+): string[] {
+  const error = validateBatchQuantity(quantity);
+  if (error) throw new Error(error);
+  const used = new Set(existing);
+  return Array.from({ length: quantity }, () => {
+    const number = generateSeriesNumber(used);
+    used.add(number);
+    return number;
+  });
+}
+export function validateSeriesBatch(
+  group: ModelGroup | undefined,
+  fields: SeriesFieldValue[],
+  numbers: string[],
+): string | null {
+  const error = validateBatchQuantity(numbers.length);
+  if (error) return error;
+  for (const [index, number] of numbers.entries()) {
+    const invalid = validateSeriesDraft(group, fields, number);
+    if (invalid) return `Row ${index + 1}: ${invalid}`;
+  }
+  if (new Set(numbers).size !== numbers.length)
+    return "Every series number in the batch must be unique.";
+  return null;
+}

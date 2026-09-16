@@ -3,6 +3,7 @@ import type { ModelGroup } from "./models";
 import { sheetsApi, type TokenProvider } from "./sheetsApi";
 import {
   makeSeriesRow,
+  validateSeriesBatch,
   rowsToSeries,
   SERIES_HEADERS,
   seriesToCells,
@@ -51,12 +52,33 @@ export async function addSeries(
   getToken: TokenProvider,
   signal: AbortSignal,
 ): Promise<SeriesSnapshot> {
+  return addSeriesBatch(
+    snapshot,
+    group,
+    fields,
+    [seriesNumber],
+    getToken,
+    signal,
+  );
+}
+
+export async function addSeriesBatch(
+  snapshot: SeriesSnapshot,
+  group: ModelGroup,
+  fields: SeriesFieldValue[],
+  seriesNumbers: string[],
+  getToken: TokenProvider,
+  signal: AbortSignal,
+): Promise<SeriesSnapshot> {
+  const invalid = validateSeriesBatch(group, fields, seriesNumbers);
+  if (invalid) throw new Error(invalid);
+  const numbers = [...seriesNumbers];
+  const numberSet = new Set(numbers);
   // Check the local, unfiltered catalog first; then read the whole sheet again before append.
-  if (snapshot.rows.some((row) => row.seriesNumber === seriesNumber))
+  if (snapshot.rows.some((row) => numberSet.has(row.seriesNumber)))
     throw new Error(
       "This series number already exists. Enter or generate a different number.",
     );
-  makeSeriesRow(group, fields, seriesNumber); // Validate before any API request.
   const write = async () => {
     signal.throwIfAborted();
     const models = await loadModels(snapshot.spreadsheetId, getToken, signal);
@@ -68,11 +90,14 @@ export async function addSeries(
         "This model group changed in Google Sheets. Reload the series catalog and choose its field values again.",
       );
     const latest = await loadSeries(snapshot.spreadsheetId, getToken, signal);
-    if (latest.rows.some((row) => row.seriesNumber === seriesNumber))
+    if (latest.rows.some((row) => numberSet.has(row.seriesNumber)))
       throw new Error(
         "This series number was just added to Google Sheets. Enter or generate a different number.",
       );
-    const row = makeSeriesRow(group, fields, seriesNumber);
+    const now = new Date();
+    const newRows = numbers.map((number) =>
+      makeSeriesRow(group, fields, number, now),
+    );
     const sheetId =
       latest.sheetId ??
       crypto.getRandomValues(new Uint32Array(1))[0] % 2000000000;
@@ -89,7 +114,7 @@ export async function addSeries(
       });
     const rows = [
       ...(!latest.hasHeader ? [SERIES_HEADERS] : []),
-      seriesToCells(row),
+      ...newRows.map(seriesToCells),
     ];
     requests.push({
       appendCells: {
@@ -119,13 +144,15 @@ export async function addSeries(
     try {
       const saved = await loadSeries(snapshot.spreadsheetId, getToken, signal);
       if (
-        !saved.rows.some(
-          (item) =>
-            item.seriesNumber === seriesNumber &&
-            item.fullSeriesName === row.fullSeriesName,
+        !newRows.every((row) =>
+          saved.rows.some(
+            (item) =>
+              item.seriesNumber === row.seriesNumber &&
+              item.fullSeriesName === row.fullSeriesName,
+          ),
         )
       )
-        throw new Error("The new row was not found.");
+        throw new Error("Not all newly saved rows were found.");
       return saved;
     } catch (error) {
       if (signal.aborted) throw error;

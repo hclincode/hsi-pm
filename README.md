@@ -104,6 +104,19 @@ Uniqueness is checked against the loaded, unfiltered rows and again against a fr
 
 Web Locks serialize saves across tabs on the same browser origin where supported. Google Sheets has no server-side uniqueness constraint or atomic check-and-append operation, so simultaneous writes from separate browsers can still race. A strict global guarantee would need a backend with a lock or unique database constraint. Existing duplicate or malformed rows block new registrations until corrected in Google Sheets.
 
+## Bulk generate series number
+
+Open **Bulk generate series number** (`/hsi-pm/#bulk-series`) and click **Load bulk catalog**. This uses the same spreadsheet selection, saved model groups, and `series-number-management` worksheet as the single-series page.
+
+1. Choose one model group and every field value, including custom values if needed. These model choices apply to the whole batch.
+2. Enter a whole-number **Quantity (1–20)**. The preview adds or removes rows immediately; increasing quantity keeps existing entries and generates new unique numbers. **Regenerate batch** replaces all numbers.
+3. Review each full series name. Individual numbers can be overridden using the same 1–32 printable ASCII rule. All full names update when model choices or numbers change.
+4. Click **Save batch** to append all rows in one Sheets request. Each row includes creation/modification times, model details, its number, and its full name. A fresh batch is generated after the saved rows are verified.
+
+Generated values follow the existing eight-character alphabet and avoid both saved numbers and other numbers in the batch. Invalid quantities, invalid overrides, or any duplicate block the entire batch. Immediately before the append, the app rechecks the saved model definition and all series numbers from Google Sheets. One conflict rejects the whole batch before writing. Failed or uncertain saves retain the batch; a retry checks for previously saved numbers before writing again. The same browser-tab locking and cross-browser concurrency limitation documented above apply.
+
+The saved list on this tab supports the same model-group filter and descending modification-time order. Drafts remain separate between the single and bulk tabs. Use **Reload series catalog** or **Reload bulk catalog** to see rows added from the other tab.
+
 ## Session behavior
 
 The app stores the access token, expiry, scope, and client ID in `localStorage` under `hsi-pm.google-auth.v1`. Login survives page reloads and browser restarts until logout (or browser data is cleared). Logout removes this record, cancels pending work, and propagates to other open tabs. Browser storage failures fall back to a page-only session. Stored tokens are accessible to JavaScript on the same origin, including other apps on the same GitHub Pages domain.
@@ -140,7 +153,7 @@ Do not publish the repository root directly: its `index.html` loads TypeScript s
 - `src/ModelsManagement.tsx`: model group editor and live code preview.
 - `src/models.ts`: model schema, validation, naming, and row serialization.
 - `src/modelStore.ts`: model loading, conflict checks, and atomic saves.
-- `src/SeriesManagement.tsx`: series creation form, filtering, and responsive record list.
+- `src/SeriesManagement.tsx`: shared single/bulk creation forms, filtering, and responsive record lists.
 - `src/series.ts` and `src/seriesStore.ts`: number generation, validation, serialization, uniqueness checks, and append-only Sheets writes.
 - `src/sheetsApi.ts`: shared Sheets API requests with token renewal on 401.
 - `src/spreadsheetLink.ts`: shared saved spreadsheet selection.

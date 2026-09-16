@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { loadModels } from "./modelStore";
 import { spreadsheetId, type ModelGroup } from "./models";
 import { type TokenProvider } from "./sheetsApi";
-import { addSeries, loadSeries, type SeriesSnapshot } from "./seriesStore";
+import { addSeriesBatch, loadSeries, type SeriesSnapshot } from "./seriesStore";
 import {
   filterSeries,
   fullSeriesName,
   generateSeriesNumber,
+  generateSeriesBatch,
+  validateBatchQuantity,
+  validateSeriesBatch,
   validateSeriesDraft,
   type SeriesFieldValue,
 } from "./series";
@@ -32,7 +35,9 @@ export default function SeriesManagement({
   ready,
   authenticating,
   getAccessToken,
+  bulk = false,
 }: {
+  bulk?: boolean;
   spreadsheetLink: string;
   remembered: boolean;
   ready: boolean;
@@ -44,6 +49,9 @@ export default function SeriesManagement({
   const [groupId, setGroupId] = useState("");
   const [choices, setChoices] = useState<FieldChoice[]>([]);
   const [number, setNumber] = useState(() => generateSeriesNumber());
+  const [quantity, setQuantity] = useState("1");
+  const [batch, setBatch] = useState(() => generateSeriesBatch(1));
+  const pageId = bulk ? "bulk-series" : "series";
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -65,8 +73,17 @@ export default function SeriesManagement({
         shortName: candidate?.shortName ?? choice.shortName,
       };
     }) ?? [];
-  const validation = validateSeriesDraft(group, fields, number);
-  const duplicate = !!snapshot?.rows.some((row) => row.seriesNumber === number);
+  const draftNumbers = bulk ? batch : [number];
+  const quantityError = bulk ? validateBatchQuantity(Number(quantity)) : null;
+  const validation = bulk
+    ? quantityError ||
+      (batch.length !== Number(quantity)
+        ? "Generate the requested quantity before saving."
+        : validateSeriesBatch(group, fields, batch))
+    : validateSeriesDraft(group, fields, number);
+  const duplicate = !!snapshot?.rows.some((row) =>
+    draftNumbers.includes(row.seriesNumber),
+  );
   const current = !!snapshot && snapshot.spreadsheetId === id && remembered;
   const rows = filterSeries(snapshot?.rows ?? [], filter);
   const filterGroups = new Map(groups.map((item) => [item.id, item.name]));
@@ -90,6 +107,8 @@ export default function SeriesManagement({
     setNotice("");
     setTouched(false);
     setNumber(generateSeriesNumber());
+    setQuantity("1");
+    setBatch(generateSeriesBatch(1));
   }, [id, remembered]);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
@@ -131,6 +150,13 @@ export default function SeriesManagement({
       setNumber(
         generateSeriesNumber(series.rows.map((row) => row.seriesNumber)),
       );
+      setBatch(
+        generateSeriesBatch(
+          validateBatchQuantity(Number(quantity)) ? 1 : Number(quantity),
+          series.rows.map((row) => row.seriesNumber),
+        ),
+      );
+      if (validateBatchQuantity(Number(quantity))) setQuantity("1");
       setTouched(false);
       setNotice("Series catalog loaded.");
     } catch (reason) {
@@ -166,6 +192,52 @@ export default function SeriesManagement({
       );
     }
   }
+  function resizeBatch(value: string) {
+    setQuantity(value);
+    setTouched(true);
+    setNotice("");
+    const count = Number(value);
+    if (validateBatchQuantity(count)) return;
+    try {
+      const retained = batch.slice(0, count);
+      const used = [
+        ...retained,
+        ...(snapshot?.rows.map((row) => row.seriesNumber) ?? []),
+      ];
+      setBatch([
+        ...retained,
+        ...(count > retained.length
+          ? generateSeriesBatch(count - retained.length, used)
+          : []),
+      ]);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Could not generate the batch.",
+      );
+    }
+  }
+  function regenerateBatch() {
+    if (quantityError) return;
+    try {
+      setBatch(
+        generateSeriesBatch(Number(quantity), [
+          ...batch,
+          ...(snapshot?.rows.map((row) => row.seriesNumber) ?? []),
+        ]),
+      );
+      setTouched(true);
+      setNotice("");
+      setError("");
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Could not generate the batch.",
+      );
+    }
+  }
   async function save() {
     if (
       !current ||
@@ -183,21 +255,31 @@ export default function SeriesManagement({
     setNotice("");
     const savedName = preview;
     try {
-      const saved = await addSeries(
+      const saved = await addSeriesBatch(
         snapshot,
         group,
         fields,
-        number,
+        draftNumbers,
         getAccessToken,
         controller.signal,
       );
       if (controller.signal.aborted) return;
       setSnapshot(saved);
       setFilter("");
-      setNotice(`Saved ${savedName}.`);
+      setNotice(
+        bulk
+          ? `Saved ${draftNumbers.length} series numbers.`
+          : `Saved ${savedName}.`,
+      );
       setTouched(false);
       setNumber(
         generateSeriesNumber(saved.rows.map((row) => row.seriesNumber)),
+      );
+      setBatch(
+        generateSeriesBatch(
+          Number(quantity),
+          saved.rows.map((row) => row.seriesNumber),
+        ),
       );
     } catch (reason) {
       if (!controller.signal.aborted)
@@ -217,15 +299,19 @@ export default function SeriesManagement({
   return (
     <section
       className="models-page series-page"
-      aria-labelledby="series-title"
+      aria-labelledby={`${pageId}-title`}
       aria-busy={!!busy}
     >
       <div className="section-heading">
         <div>
           <span className="eyebrow">GOODS REGISTER</span>
-          <h2 id="series-title">Series number management</h2>
+          <h2 id={`${pageId}-title`}>
+            {bulk ? "Bulk generate series number" : "Series number management"}
+          </h2>
           <p className="muted">
-            Create a unique series number for each item in your catalog.
+            {bulk
+              ? "Generate 1–20 unique series numbers for the same model in one batch."
+              : "Create a unique series number for each item in your catalog."}
           </p>
         </div>
       </div>
@@ -258,7 +344,13 @@ export default function SeriesManagement({
           onClick={load}
           disabled={!id || !remembered || !ready || authenticating || !!busy}
         >
-          {snapshot ? "Reload series catalog" : "Load series catalog"}
+          {bulk
+            ? snapshot
+              ? "Reload bulk catalog"
+              : "Load bulk catalog"
+            : snapshot
+              ? "Reload series catalog"
+              : "Load series catalog"}
         </button>
       </div>
       {!remembered && (
@@ -277,7 +369,7 @@ export default function SeriesManagement({
       {current && (
         <>
           <div className="series-create panel">
-            <h3>Add a new series</h3>
+            <h3>{bulk ? "Create a batch" : "Add a new series"}</h3>
             {!groups.length ? (
               <p className="muted">
                 No saved model groups were found. Add and save a group in{" "}
@@ -293,9 +385,9 @@ export default function SeriesManagement({
                       <span>1</span> Choose a model group
                     </h4>
                     <label>
-                      Model group
+                      {bulk ? "Bulk model group" : "Model group"}
                       <select
-                        aria-label="Model group"
+                        aria-label={bulk ? "Bulk model group" : "Model group"}
                         value={groupId}
                         onChange={(event) => {
                           const next = groups.find(
@@ -344,7 +436,7 @@ export default function SeriesManagement({
                               <label>
                                 {field.fieldName}
                                 <select
-                                  aria-label={`Value for ${field.fieldName}`}
+                                  aria-label={`${bulk ? "Bulk value" : "Value"} for ${field.fieldName}`}
                                   value={choice.option}
                                   onChange={(event) =>
                                     update({
@@ -366,6 +458,7 @@ export default function SeriesManagement({
                               {choice.option === "custom" && (
                                 <div className="input-pair custom-value">
                                   <label>
+                                    {bulk ? "Bulk " : ""}
                                     {field.fieldName} custom name
                                     <input
                                       value={choice.name}
@@ -375,6 +468,7 @@ export default function SeriesManagement({
                                     />
                                   </label>
                                   <label>
+                                    {bulk ? "Bulk " : ""}
                                     {field.fieldName} custom short name
                                     <input
                                       value={choice.shortName}
@@ -399,45 +493,121 @@ export default function SeriesManagement({
                       </p>
                     )}
                   </div>
-                  <div className="series-step">
-                    <h4>
-                      <span>3</span> Review your series number
-                    </h4>
-                    <div className="series-number-row">
-                      <label>
-                        Series number
-                        <input
-                          value={number}
-                          maxLength={32}
-                          autoCapitalize="none"
-                          autoComplete="off"
-                          spellCheck={false}
-                          aria-describedby="series-help"
-                          onChange={(event) => {
-                            setNumber(event.target.value);
-                            setTouched(true);
-                            setNotice("");
-                          }}
-                        />
-                      </label>
-                      <button className="secondary" onClick={regenerate}>
-                        Generate another
-                      </button>
+                  {bulk ? (
+                    <div className="series-step">
+                      <h4>
+                        <span>3</span> Generate and review your batch
+                      </h4>
+                      <div className="series-number-row">
+                        <label>
+                          Quantity (1–20)
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={20}
+                            step={1}
+                            value={quantity}
+                            onChange={(event) =>
+                              resizeBatch(event.target.value)
+                            }
+                          />
+                        </label>
+                        <button
+                          className="secondary"
+                          disabled={!!quantityError}
+                          onClick={regenerateBatch}
+                        >
+                          Regenerate batch
+                        </button>
+                      </div>
+                      <p className="muted">
+                        Each row starts with 8 letters or digits, excluding 0,
+                        O, l, i, I, w, W. You may override individual numbers
+                        with up to 32 printable ASCII characters.
+                      </p>
+                      <div className="bulk-preview" aria-label="Batch preview">
+                        {batch.map((value, index) => (
+                          <div className="bulk-preview-row" key={index}>
+                            <label>
+                              Series number {index + 1}
+                              <input
+                                value={value}
+                                maxLength={32}
+                                autoCapitalize="none"
+                                autoComplete="off"
+                                spellCheck={false}
+                                onChange={(event) => {
+                                  setBatch((items) =>
+                                    items.map((item, i) =>
+                                      i === index ? event.target.value : item,
+                                    ),
+                                  );
+                                  setTouched(true);
+                                  setNotice("");
+                                }}
+                              />
+                            </label>
+                            <div>
+                              <span className="eyebrow">FULL SERIES NAME</span>
+                              <output
+                                aria-label={`Full series name ${index + 1}`}
+                              >
+                                {group
+                                  ? fullSeriesName(group, fields, value)
+                                  : `—-—-${value}`}
+                              </output>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <p id="series-help" className="muted">
-                      Generated numbers contain 8 letters or digits, excluding
-                      0, O, l, i, I, w, W. You can enter your own printable
-                      ASCII value, up to 32 characters.
+                  ) : (
+                    <>
+                      {" "}
+                      <div className="series-step">
+                        <h4>
+                          <span>3</span> Review your series number
+                        </h4>
+                        <div className="series-number-row">
+                          <label>
+                            Series number
+                            <input
+                              value={number}
+                              maxLength={32}
+                              autoCapitalize="none"
+                              autoComplete="off"
+                              spellCheck={false}
+                              aria-describedby={`${pageId}-help`}
+                              onChange={(event) => {
+                                setNumber(event.target.value);
+                                setTouched(true);
+                                setNotice("");
+                              }}
+                            />
+                          </label>
+                          <button className="secondary" onClick={regenerate}>
+                            Generate another
+                          </button>
+                        </div>
+                        <p id={`${pageId}-help`} className="muted">
+                          Generated numbers contain 8 letters or digits,
+                          excluding 0, O, l, i, I, w, W. You can enter your own
+                          printable ASCII value, up to 32 characters.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </fieldset>
+                {!bulk && (
+                  <div className="model-preview">
+                    <span className="eyebrow">FULL SERIES NAME</span>
+                    <output aria-label="Full series name">{preview}</output>
+                    <p className="muted">
+                      Group short name · ordered model values · series number
                     </p>
                   </div>
-                </fieldset>
-                <div className="model-preview">
-                  <span className="eyebrow">FULL SERIES NAME</span>
-                  <output aria-label="Full series name">{preview}</output>
-                  <p className="muted">
-                    Group short name · ordered model values · series number
-                  </p>
-                </div>
+                )}
                 {duplicate ? (
                   <p className="validation" role="status">
                     This series number already exists. Enter or generate a
@@ -456,7 +626,7 @@ export default function SeriesManagement({
                       !!busy || authenticating || !!validation || duplicate
                     }
                   >
-                    Save new series
+                    {bulk ? "Save batch" : "Save new series"}
                   </button>
                   <span className="muted">
                     Uniqueness is checked across all model groups before saving.
@@ -465,19 +635,28 @@ export default function SeriesManagement({
               </>
             )}
           </div>
-          <section className="series-list" aria-labelledby="saved-series-title">
+          <section
+            className="series-list"
+            aria-labelledby={`${pageId}-saved-title`}
+          >
             <div className="section-heading">
               <div>
                 <span className="eyebrow">SAVED ITEMS</span>
-                <h3 id="saved-series-title">
+                <h3 id={`${pageId}-saved-title`}>
                   Series numbers <span className="count">{rows.length}</span>
                 </h3>
                 <p className="muted">Most recently modified first.</p>
               </div>
               <label>
-                Filter by model group
+                {bulk
+                  ? "Filter bulk results by model group"
+                  : "Filter by model group"}
                 <select
-                  aria-label="Filter by model group"
+                  aria-label={
+                    bulk
+                      ? "Filter bulk results by model group"
+                      : "Filter by model group"
+                  }
                   value={filter}
                   onChange={(event) => setFilter(event.target.value)}
                 >
