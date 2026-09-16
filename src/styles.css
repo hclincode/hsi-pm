@@ -448,3 +448,254 @@ footer {
     font-size: 13px;
   }
 }
+
+[hidden] {
+  display: none !important;
+}
+.page-tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid #dfe5dd;
+}
+.page-tabs a {
+  padding: 18px 0 14px;
+  font-size: 14px;
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+.page-tabs a[aria-current] {
+  border-color: #2b5239;
+  color: #2b5239;
+  font-weight: 700;
+}
+.models-container {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.models-page .muted {
+  color: #64745f;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.models-page .panel {
+  background: white;
+  border: 1px solid #dfe5da;
+  border-radius: 14px;
+  padding: 22px;
+  min-width: 0;
+}
+.models-page label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 0;
+}
+.models-page input,
+.models-page select {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #cbd6c6;
+  border-radius: 8px;
+  background: #fff;
+  color: #23372c;
+  font: inherit;
+  font-size: 16px;
+}
+.models-page input:focus-visible,
+.models-page select:focus-visible {
+  outline: 2px solid #508a63;
+  outline-offset: 2px;
+}
+.source-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+.source-row input {
+  flex: 1;
+}
+.source-row button {
+  flex-shrink: 0;
+}
+.model-status {
+  font-size: 13px;
+  color: #345b3e;
+  min-height: 18px;
+}
+.model-toolbar,
+.group-heading,
+.field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.model-toolbar {
+  margin: 26px 0 18px;
+  font-size: 13px;
+}
+.model-layout {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.models-page .group-list {
+  padding: 10px;
+}
+.group-choice {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  width: 100%;
+  background: transparent;
+  gap: 7px;
+  padding: 16px 12px;
+  overflow-wrap: anywhere;
+}
+.group-choice strong {
+  font-size: 14px;
+}
+.group-choice span {
+  color: #67775f;
+  font-size: 12px;
+  font-weight: 400;
+}
+.group-choice.selected {
+  background: #eaf1e6;
+}
+.group-editor fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.group-heading {
+  margin-bottom: 16px;
+}
+.group-heading h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.input-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.danger {
+  background: #fbf0eb;
+  color: #983e26;
+  font-size: 12px;
+}
+.field-card {
+  border: 1px solid #e0e6dc;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: #fafbf8;
+}
+.field-heading {
+  margin-bottom: 15px;
+  font-size: 13px;
+}
+.field-actions {
+  display: flex;
+  gap: 6px;
+}
+.compact {
+  padding: 8px 12px;
+  min-width: 44px;
+  min-height: 44px;
+}
+.candidate-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+.field-card h4 {
+  font-size: 12px;
+  margin: 20px 0 12px;
+}
+.model-preview {
+  padding: 20px;
+  border-radius: 12px;
+  background: #edf3e8;
+  margin-top: 20px;
+}
+.preview-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+}
+.preview-choices label {
+  flex: 1;
+  min-width: 120px;
+}
+.model-preview output {
+  display: block;
+  font:
+    600 25px ui-monospace,
+    monospace;
+  overflow-wrap: anywhere;
+}
+.validation {
+  font-size: 13px;
+  padding: 12px;
+  background: #fff7e4;
+  border-radius: 8px;
+  color: #795623;
+}
+.discard {
+  margin-top: 20px;
+}
+@media (max-width: 760px) {
+  .model-layout {
+    grid-template-columns: 1fr;
+  }
+  .source-row,
+  .model-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .model-toolbar .actions {
+    flex-wrap: wrap;
+  }
+  .models-page .panel {
+    padding: 16px;
+  }
+  .models-page .group-list {
+    display: flex;
+    overflow-x: auto;
+    padding: 8px;
+  }
+  .group-choice {
+    min-width: 150px;
+    max-width: 220px;
+    flex-shrink: 0;
+  }
+  .input-pair {
+    grid-template-columns: 1fr;
+  }
+  .candidate-row {
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+  .candidate-row label:first-child {
+    grid-column: 1 / -1;
+  }
+  .field-card {
+    padding: 12px;
+  }
+  .page-tabs {
+    gap: 20px;
+  }
+  .page-tabs a {
+    font-size: 13px;
+  }
+}

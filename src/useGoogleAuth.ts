@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DRIVE_SCOPE, loadGoogleIdentity } from "./google";
+import { DRIVE_SCOPE, SHEETS_SCOPE, loadGoogleIdentity } from "./google";
 
 const STORAGE_KEY = "hsi-pm.google-auth.v1";
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -14,7 +14,8 @@ function readSession(): Session | null {
     const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
     return value &&
       value.clientId === CLIENT_ID &&
-      value.scope === DRIVE_SCOPE &&
+      typeof value.scope === "string" &&
+      value.scope.split(" ").includes(DRIVE_SCOPE) &&
       typeof value.accessToken === "string" &&
       Number.isFinite(value.expiresAt)
       ? value
@@ -45,7 +46,9 @@ export function useGoogleAuth() {
     promise: Promise<string>;
     cancel: () => void;
   } | null>(null);
-  const renew = useRef<(interactive?: boolean) => Promise<string>>(null!);
+  const renew = useRef<
+    (interactive?: boolean, sheets?: boolean) => Promise<string>
+  >(null!);
   const automaticAttempt = useRef("");
 
   function update(value: Session | null) {
@@ -73,10 +76,13 @@ export function useGoogleAuth() {
     update(null);
   }
 
-  function requestToken(interactive = false): Promise<string> {
+  function requestToken(interactive = false, sheets = false): Promise<string> {
     if (pending.current) return pending.current.promise;
     if (!window.google?.accounts?.oauth2)
       return Promise.reject(new Error("Google login is not ready yet."));
+    const needsSheets =
+      sheets || !!current.current?.scope.split(" ").includes(SHEETS_SCOPE);
+    const scopes = needsSheets ? [DRIVE_SCOPE, SHEETS_SCOPE] : [DRIVE_SCOPE];
     setAuthenticating(true);
     setError("");
     const id = ++generation.current;
@@ -114,7 +120,7 @@ export function useGoogleAuth() {
     try {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
-        scope: DRIVE_SCOPE,
+        scope: scopes.join(" "),
         include_granted_scopes: false,
         callback: (response) => {
           if (!valid()) return;
@@ -127,10 +133,14 @@ export function useGoogleAuth() {
             return;
           }
           if (
-            !google.accounts.oauth2.hasGrantedAllScopes(response, DRIVE_SCOPE)
+            !scopes.every((scope) =>
+              google.accounts.oauth2.hasGrantedAllScopes(response, scope),
+            )
           ) {
             fail(
-              "Allow file metadata access to list your Google Sheets. Then try logging in again.",
+              needsSheets
+                ? "Allow Google Sheets edit access to manage models. Your draft has not been saved."
+                : "Allow file metadata access to list your Google Sheets. Then try logging in again.",
             );
             return;
           }
@@ -146,7 +156,7 @@ export function useGoogleAuth() {
             accessToken: response.access_token,
             expiresAt: Date.now() + lifetime,
             clientId: CLIENT_ID,
-            scope: DRIVE_SCOPE,
+            scope: scopes.join(" "),
           });
           resolve(response.access_token);
         },
@@ -237,17 +247,23 @@ export function useGoogleAuth() {
     };
   }, [ready, session]);
 
-  async function getAccessToken(force = false) {
+  async function getAccessToken(force = false, sheets = false) {
     if (!current.current) throw new Error("Log in with Google to continue.");
     if (
       !force &&
       current.current.accessToken &&
-      current.current.expiresAt > Date.now()
+      current.current.expiresAt > Date.now() &&
+      (!sheets || current.current.scope.split(" ").includes(SHEETS_SCOPE))
     )
       return current.current.accessToken;
-    invalidate();
+    if (force || current.current.expiresAt <= Date.now()) invalidate();
     automaticAttempt.current = ":0";
-    return requestToken();
+    const token = await requestToken(false, sheets);
+    if (sheets && !current.current?.scope.split(" ").includes(SHEETS_SCOPE))
+      throw new Error(
+        "Reconnect Google to allow Sheets editing, then try again.",
+      );
+    return token;
   }
 
   return {
