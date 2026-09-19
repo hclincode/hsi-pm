@@ -3,6 +3,7 @@ import { listSheets, SessionExpiredError, type SheetFile } from "./google";
 
 import ModelsManagement from "./ModelsManagement";
 import SeriesManagement from "./SeriesManagement";
+import OrdersManagement from "./OrdersManagement";
 import { savedSpreadsheetLink, SPREADSHEET_LINK_KEY } from "./spreadsheetLink";
 import { useGoogleAuth } from "./useGoogleAuth";
 
@@ -13,7 +14,9 @@ function currentPage() {
       ? "series"
       : window.location.hash === "#bulk-series"
         ? "bulk-series"
-        : "workspace";
+        : window.location.hash === "#orders"
+          ? "orders"
+          : "workspace";
 }
 
 function SheetIcon() {
@@ -164,6 +167,9 @@ export default function App() {
         >
           Bulk generate series number
         </a>
+        <a href="#orders" aria-current={page === "orders" ? "page" : undefined}>
+          Order management
+        </a>
       </nav>
       {error && (
         <div className="error" role="alert">
@@ -173,7 +179,18 @@ export default function App() {
       <main>
         <div className="intro">
           <span className="eyebrow">YOUR WORKSPACE</span>
-          {page === "series" || page === "bulk-series" ? (
+          {page === "orders" ? (
+            <>
+              <h1>
+                From goods.
+                <br />
+                <span>To sales.</span>
+              </h1>
+              <p>
+                Track order details and sold status for each registered item.
+              </p>
+            </>
+          ) : page === "series" || page === "bulk-series" ? (
             <>
               <h1>
                 Every item.
@@ -369,6 +386,15 @@ export default function App() {
         <div className="models-container" hidden={page !== "bulk-series"}>
           <SeriesManagement
             bulk
+            spreadsheetLink={spreadsheetLink}
+            remembered={remembered}
+            ready={ready}
+            authenticating={authenticating}
+            getAccessToken={getAccessToken}
+          />
+        </div>
+        <div className="models-container" hidden={page !== "orders"}>
+          <OrdersManagement
             spreadsheetLink={spreadsheetLink}
             remembered={remembered}
             ready={ready}

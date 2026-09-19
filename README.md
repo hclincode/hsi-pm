@@ -117,6 +117,18 @@ Generated values follow the existing eight-character alphabet and avoid both sav
 
 The saved list on this tab supports the same model-group filter and descending modification-time order. Drafts remain separate between the single and bulk tabs. Use **Reload series catalog** or **Reload bulk catalog** to see rows added from the other tab.
 
+## Order management
+
+Open **Order management** (`/hsi-pm/#orders`) and select **Load orders**. It uses the shared spreadsheet and existing `series-number-management` worksheet. Records are sorted by creation time, oldest first, with at most 20 per page.
+
+Filter by model group, **All / Sold / Unsold**, and created, modified, or sold time ranges. All active filters combine with AND. Date boundaries are inclusive and use your browser’s local time. Blank status and `N` both count as unsold; `Y` means sold. An unsold record with a retained sold time can still match the sold-time range.
+
+Edit comments, price, and sales channel, then toggle **Mark sold & save** or **Mark unsold & save** to save that row. Price can be blank or a non-negative decimal. Every toggle updates modification time. Marking sold sets a new sold time; marking unsold retains the previous sold time. Draft edits persist while switching tabs but are not saved until toggled.
+
+On the first save, the app adds headers in J:N: `orderComments`, `price`, `salesChannel`, `saled`, `saledAt`, expanding legacy nine-column worksheets if necessary. Existing series/model cells and creation times stay intact. Single and bulk registration remain compatible and new records default to unsold.
+
+Before saving, the app rereads the row by series number and rejects conflicting changes. Writes are atomic and verified afterward; failed saves retain drafts. Same-browser saves share the series lock. Google Sheets cannot prevent another browser from changing the row between the conflict check and write.
+
 ## Session behavior
 
 The app stores the access token, expiry, scope, and client ID in `localStorage` under `hsi-pm.google-auth.v1`. Login survives page reloads and browser restarts until logout (or browser data is cleared). Logout removes this record, cancels pending work, and propagates to other open tabs. Browser storage failures fall back to a page-only session. Stored tokens are accessible to JavaScript on the same origin, including other apps on the same GitHub Pages domain.
