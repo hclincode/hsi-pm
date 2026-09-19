@@ -41,6 +41,7 @@ export default function OrdersManagement({
 }) {
   const [snapshot, setSnapshot] = useState<OrderSnapshot | null>(null);
   const [drafts, setDrafts] = useState<Record<string, OrderDraft>>({});
+  const [customChannels, setCustomChannels] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<OrderFilters>(EMPTY_ORDER_FILTERS);
   const [page, setPage] = useState(0);
   const [busy, setBusy] = useState("");
@@ -61,6 +62,21 @@ export default function OrdersManagement({
   const groups = new Map(
     snapshot?.rows.map((row) => [row.modelGroupId, row.modelGroupName]) ?? [],
   );
+  const channels = [
+    ...new Set(
+      (snapshot?.rows ?? [])
+        .map((row) => row.salesChannel)
+        .filter((value) => value.trim()),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+  function setCustomChannel(number: string, custom: boolean) {
+    setCustomChannels((values) => {
+      const next = new Set(values);
+      if (custom) next.add(number);
+      else next.delete(number);
+      return next;
+    });
+  }
   const filterError = validateOrderFilters(filters);
 
   useEffect(() => {
@@ -68,6 +84,7 @@ export default function OrdersManagement({
     request.current = null;
     setSnapshot(null);
     setDrafts({});
+    setCustomChannels(new Set());
     setFilters(EMPTY_ORDER_FILTERS);
     setPage(0);
     setBusy("");
@@ -102,6 +119,7 @@ export default function OrdersManagement({
       if (controller.signal.aborted) return;
       setSnapshot(loaded);
       setDrafts({});
+      setCustomChannels(new Set());
       setPage(0);
       setNotice("Orders loaded.");
     } catch (reason) {
@@ -172,6 +190,7 @@ export default function OrdersManagement({
         delete next[row.seriesNumber];
         return next;
       });
+      setCustomChannel(row.seriesNumber, false);
       setNotice(
         `Saved ${saved.fullSeriesName} as ${saved.saled ? "sold" : "unsold"}.`,
       );
@@ -358,6 +377,10 @@ export default function OrdersManagement({
               {visible.map((row) => {
                 const draft = drafts[row.seriesNumber] ?? orderDraft(row);
                 const invalid = validateOrderDraft(draft);
+                const customChannel =
+                  customChannels.has(row.seriesNumber) ||
+                  (!!draft.salesChannel &&
+                    !channels.includes(draft.salesChannel));
                 return (
                   <article
                     className="order-card panel"
@@ -423,7 +446,45 @@ export default function OrdersManagement({
                         </label>
                         <label>
                           Sales channel
+                          <select
+                            aria-label="Sales channel"
+                            value={
+                              customChannel
+                                ? "custom"
+                                : draft.salesChannel
+                                  ? `existing:${draft.salesChannel}`
+                                  : ""
+                            }
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setCustomChannel(
+                                row.seriesNumber,
+                                value === "custom",
+                              );
+                              if (value !== "custom")
+                                edit(row, {
+                                  salesChannel: value ? value.slice(9) : "",
+                                });
+                            }}
+                          >
+                            <option value="">No sales channel</option>
+                            {channels.map((channel) => (
+                              <option
+                                key={channel}
+                                value={`existing:${channel}`}
+                              >
+                                {channel}
+                              </option>
+                            ))}
+                            <option value="custom">Custom…</option>
+                          </select>
+                        </label>
+                      </div>
+                      {customChannel && (
+                        <label>
+                          Custom sales channel
                           <input
+                            aria-label="Custom sales channel"
                             value={draft.salesChannel}
                             onChange={(event) =>
                               edit(row, { salesChannel: event.target.value })
@@ -431,7 +492,7 @@ export default function OrdersManagement({
                             placeholder="e.g. Online store"
                           />
                         </label>
-                      </div>
+                      )}
                       {invalid && (
                         <p className="validation" role="status">
                           {invalid}

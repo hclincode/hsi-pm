@@ -123,7 +123,7 @@ Open **Order management** (`/hsi-pm/#orders`) and select **Load orders**. It use
 
 Filter by model group, **All / Sold / Unsold**, and created, modified, or sold time ranges. All active filters combine with AND. Date boundaries are inclusive and use your browser’s local time. Blank status and `N` both count as unsold; `Y` means sold. An unsold record with a retained sold time can still match the sold-time range.
 
-Edit comments, price, and sales channel, then toggle **Mark sold & save** or **Mark unsold & save** to save that row. Price can be blank or a non-negative decimal. Every toggle updates modification time. Marking sold sets a new sold time; marking unsold retains the previous sold time. Draft edits persist while switching tabs but are not saved until toggled.
+Edit comments, price, and sales channel, then toggle **Mark sold & save** or **Mark unsold & save** to save that row. Sales channel offers distinct nonblank values from all loaded orders, plus **Custom…** for entering a new value and **No sales channel** to clear it. Saved custom values become available in the dropdowns. Price can be blank or a non-negative decimal. Every toggle updates modification time. Marking sold sets a new sold time; marking unsold retains the previous sold time. Draft edits persist while switching tabs but are not saved until toggled.
 
 On the first save, the app adds headers in J:N: `orderComments`, `price`, `salesChannel`, `saled`, `saledAt`, expanding legacy nine-column worksheets if necessary. Existing series/model cells and creation times stay intact. Single and bulk registration remain compatible and new records default to unsold.
 

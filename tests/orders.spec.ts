@@ -213,7 +213,8 @@ test("legacy rows expand safely; toggle saves literal edits and retains sold tim
     .getByLabel("Order comments", { exact: true })
     .fill("=literal comment");
   await row.getByLabel("Price", { exact: true }).fill("12.50");
-  await row.getByLabel("Sales channel", { exact: true }).fill("Web");
+  await row.getByLabel("Sales channel", { exact: true }).selectOption("custom");
+  await row.getByLabel("Custom sales channel", { exact: true }).fill("Web");
   expect(state.writes).toHaveLength(0);
   await row.getByRole("switch").click();
   await expect(row.getByRole("switch")).toBeChecked();
@@ -303,4 +304,44 @@ test("invalid price blocks save and mobile controls fit screen", async ({
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+
+test("sales channels are distinct across all rows and custom values become reusable on save", async ({
+  page,
+}) => {
+  const state = await setup(page, 25);
+  state.rows[1][11] = "Web";
+  state.rows[2][11] = "Web";
+  state.rows[25][11] = "Market";
+  await page.getByRole("button", { name: "Reload orders" }).click();
+  const row = page.getByRole("article", {
+    name: "Order Item0000",
+    exact: true,
+  });
+  const select = row.getByLabel("Sales channel", { exact: true });
+  await expect(select).toHaveValue("existing:Web");
+  await expect(select.locator("option")).toHaveText([
+    "No sales channel",
+    "Market",
+    "Web",
+    "Custom…",
+  ]);
+  await select.selectOption("existing:Market");
+  expect(state.writes).toHaveLength(0);
+  await select.selectOption("custom");
+  await row.getByLabel("Custom sales channel", { exact: true }).fill("Direct");
+  await row.getByRole("switch").click();
+  await expect(select).toHaveValue("existing:Direct");
+  expect(state.rows[1][11]).toBe("Direct");
+  const other = page.getByRole("article", {
+    name: "Order Item0002",
+    exact: true,
+  });
+  await expect(
+    other.getByLabel("Sales channel", { exact: true }).locator("option"),
+  ).toHaveText(["No sales channel", "Direct", "Market", "Web", "Custom…"]);
+  await select.selectOption("");
+  await row.getByRole("switch").click();
+  await expect(row.getByRole("switch")).not.toBeChecked();
+  expect(state.rows[1][11]).toBe("");
 });
