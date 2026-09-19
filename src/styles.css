@@ -928,3 +928,149 @@ footer {
     gap: 14px;
   }
 }
+
+.orders-page select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%2334513b' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+.orders-page h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.order-filter-selects {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.order-date-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 24px 0;
+}
+.order-date-filters fieldset {
+  border: 1px solid #e0e6d9;
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+.order-date-filters legend {
+  font-size: 13px;
+  font-weight: 600;
+}
+.order-date-filters label + label {
+  margin-top: 12px;
+}
+.order-date-filters input {
+  font-size: 14px;
+}
+.order-summary {
+  margin: 28px 0 16px;
+  font-size: 14px;
+}
+.order-list {
+  display: grid;
+  gap: 18px;
+}
+.order-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 14px;
+}
+.order-heading > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.order-heading .badge {
+  flex-shrink: 0;
+}
+.order-times {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  font-size: 12px;
+  padding: 16px 0;
+  margin: 0 0 16px;
+  border-block: 1px solid #e2e8dd;
+}
+.order-times dt {
+  color: #64745f;
+  margin-bottom: 6px;
+}
+.order-times dd {
+  margin: 0;
+  line-height: 1.7;
+}
+.order-edit {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.order-edit textarea {
+  min-height: 70px;
+  width: 100%;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #cbd6c6;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 16px;
+  background: #fff;
+  color: #23372c;
+}
+.order-edit textarea:focus-visible {
+  outline: 2px solid #508a63;
+  outline-offset: 2px;
+}
+.order-edit > label {
+  margin-bottom: 16px;
+}
+.order-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 18px;
+}
+.order-actions .primary {
+  flex: 0 0 auto;
+}
+.order-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .order-date-filters,
+  .order-filter-selects {
+    grid-template-columns: 1fr;
+  }
+  .order-times {
+    grid-template-columns: 1fr;
+  }
+  .order-pagination {
+    flex-wrap: wrap;
+  }
+  .order-pagination button {
+    flex: 1;
+  }
+  .order-pagination span {
+    order: 1;
+    width: 100%;
+    text-align: center;
+  }
+  .order-actions {
+    flex-wrap: wrap;
+  }
+  .order-date-filters input {
+    font-size: 16px;
+  }
+}
