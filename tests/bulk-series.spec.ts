@@ -37,7 +37,7 @@ test("quantity boundaries, generated alphabet, batch validation and service vali
     expect(numbers).toHaveLength(count);
     expect(new Set(numbers).size).toBe(count);
     for (const number of numbers) {
-      expect(number).toMatch(/^[a-zA-Z0-9]{8}$/);
+      expect(number).toMatch(/^[A-Z0-9]{8}$/);
       expect(number).not.toMatch(/[0OliIwW]/);
     }
   }
@@ -90,7 +90,7 @@ test("20-row preview uses all naming rules and saves in one append", async ({
     );
   expect(new Set(numbers).size).toBe(20);
   for (const [index, number] of numbers.entries()) {
-    expect(number).toMatch(/^[a-zA-Z0-9]{8}$/);
+    expect(number).toMatch(/^[A-Z0-9]{8}$/);
     expect(number).not.toMatch(/[0OliIwW]/);
     await expect(
       page.getByLabel(`Full series name ${index + 1}`, { exact: true }),

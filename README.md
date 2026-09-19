@@ -82,7 +82,7 @@ To add a series:
 3. Keep the generated series number, click **Generate another**, or overwrite it. The full name updates live at every step. For group `mgn`, blue (`b`), size 16cm (`16`), and `Ab23Cd45`, the result is **mgn-b16-Ab23Cd45**. The group prefix appears once.
 4. Click **Save new series**. The app appends the row and verifies it by reading the sheet again. The creation and modification times are equal on creation. It then generates another number for the next entry.
 
-Generated numbers use cryptographic randomness, are exactly eight characters, and use `[a-zA-Z0-9]` excluding `0`, `O`, `l`, `i`, `I`, `w`, and `W`. Manual numbers can use 1–32 printable ASCII characters, including those excluded from generation and spaces (but not only spaces). Manual values are preserved exactly. Series-number uniqueness is case-sensitive, global across all groups in this worksheet, and independent of the active list filter.
+Generated numbers use cryptographic randomness, are exactly eight characters, and use uppercase letters and digits (`[A-Z0-9]`) excluding `0`, `O`, `I`, and `W`. Manual numbers can use 1–32 printable ASCII characters, including those excluded from generation and spaces (but not only spaces). Manual values are preserved exactly. Series-number uniqueness is case-sensitive, global across all groups in this worksheet, and independent of the active list filter.
 
 The saved list can be filtered by model group and is always sorted by **modification time descending**. Historical groups remain available in the filter even if subsequently removed from Models management. Records retain their model names and field values as they were when created. There are no edit or delete actions.
 

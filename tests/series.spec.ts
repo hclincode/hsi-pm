@@ -38,7 +38,7 @@ test("random alphabet, ASCII overrides, names, serialization and ordering", () =
   const used = new Set<string>();
   for (let i = 0; i < 1000; i++) {
     const number = generateSeriesNumber(used);
-    expect(number).toMatch(/^[a-zA-Z0-9]{8}$/);
+    expect(number).toMatch(/^[A-Z0-9]{8}$/);
     expect(number).not.toMatch(/[0OliIwW]/);
     expect([...number].every((char) => SERIES_ALPHABET.includes(char))).toBe(
       true,
@@ -122,7 +122,7 @@ test("three steps update preview and append unique row with timestamps", async (
   const state = await mock(page);
   await open(page);
   await expect(page.getByLabel("Series number", { exact: true })).toHaveValue(
-    /^[a-zA-Z0-9]{8}$/,
+    /^[A-Z0-9]{8}$/,
   );
   expect(
     await page.getByLabel("Series number", { exact: true }).inputValue(),

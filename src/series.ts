@@ -1,9 +1,9 @@
 import type { ModelGroup } from "./models";
 
 export const SERIES_ALPHABET =
-  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     .split("")
-    .filter((char) => !"0OliIwW".includes(char))
+    .filter((char) => !"0OIW".includes(char))
     .join("");
 export interface SeriesFieldValue {
   fieldName: string;
