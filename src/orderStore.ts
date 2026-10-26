@@ -63,7 +63,7 @@ export async function loadOrders(
     ...parsed,
   };
 }
-export async function toggleOrder(
+export async function saveOrder(
   snapshot: OrderSnapshot,
   original: OrderRow,
   draft: OrderDraft,
@@ -89,8 +89,9 @@ export async function toggleOrder(
         "This order changed in Google Sheets. Reload orders before saving. Your draft is still here.",
       );
     const now = new Date().toISOString();
-    const saled = !row.saled;
-    const saledAt = saled ? now : row.saledAt;
+    const saled = edits.saled;
+    // Stamp the sold time only when this save is what marks the order sold.
+    const saledAt = saled && !row.saled ? now : row.saledAt;
     const requests: unknown[] = [];
     if (latest.columnCount < 14)
       requests.push({
@@ -161,7 +162,7 @@ export async function toggleOrder(
       );
     } catch (error) {
       if (signal.aborted) throw error;
-      // A lost response must not turn a successful sold toggle into an accidental unsold retry.
+      // A lost response must not leave the caller unsure whether the sold state was written.
       try {
         const checked = await loadOrders(
           snapshot.spreadsheetId,

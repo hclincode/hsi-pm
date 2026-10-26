@@ -200,7 +200,7 @@ test("UI filters status, group and dates together and clears them", async ({
   await expect(page.getByRole("article")).toHaveCount(1);
 });
 
-test("legacy rows expand safely; toggle saves literal edits and retains sold time on unsold", async ({
+test("legacy rows expand safely; save writes literal edits and retains sold time on unsold", async ({
   page,
 }) => {
   const state = await setup(page, 3, true);
@@ -215,9 +215,12 @@ test("legacy rows expand safely; toggle saves literal edits and retains sold tim
   await row.getByLabel("Price", { exact: true }).fill("12.50");
   await row.getByLabel("Sales channel", { exact: true }).selectOption("custom");
   await row.getByLabel("Custom sales channel", { exact: true }).fill("Web");
-  expect(state.writes).toHaveLength(0);
+  const save = row.getByRole("button", { name: "Save order" });
   await row.getByRole("switch").click();
   await expect(row.getByRole("switch")).toBeChecked();
+  expect(state.writes).toHaveLength(0);
+  await save.click();
+  await expect(row.getByText("Unsaved edits")).toHaveCount(0);
   expect(state.columns).toBe(14);
   expect(state.rows[0].slice(9)).toEqual(ORDER_HEADERS);
   expect(state.rows[1].slice(9, 13)).toEqual([
@@ -232,6 +235,8 @@ test("legacy rows expand safely; toggle saves literal edits and retains sold tim
   const soldAt = state.rows[1][13];
   expect(state.rows[1][1]).toBe(soldAt);
   await row.getByRole("switch").click();
+  await save.click();
+  await expect(row.getByText("Unsaved edits")).toHaveCount(0);
   await expect(row.getByRole("switch")).not.toBeChecked();
   expect(state.rows[1][12]).toBe("N");
   expect(state.rows[1][13]).toBe(soldAt);
@@ -239,6 +244,8 @@ test("legacy rows expand safely; toggle saves literal edits and retains sold tim
     Date.parse(soldAt),
   );
   await row.getByRole("switch").click();
+  await save.click();
+  await expect(row.getByText("Unsaved edits")).toHaveCount(0);
   await expect(row.getByRole("switch")).toBeChecked();
   expect(Date.parse(state.rows[1][13])).toBeGreaterThan(Date.parse(soldAt));
 });
@@ -252,8 +259,10 @@ test("conflict and write failure retain edits; moved rows and lost responses sav
     exact: true,
   });
   await row.getByLabel("Order comments", { exact: true }).fill("draft");
+  const save = row.getByRole("button", { name: "Save order" });
   state.rows[1][9] = "remote edit";
   await row.getByRole("switch").click();
+  await save.click();
   await expect(page.getByRole("alert")).toContainText(
     "changed in Google Sheets",
   );
@@ -263,13 +272,15 @@ test("conflict and write failure retain edits; moved rows and lost responses sav
   expect(state.writes).toHaveLength(0);
   state.rows[1][9] = "";
   state.fail = true;
-  await row.getByRole("switch").click();
+  await save.click();
   await expect(page.getByRole("alert")).toContainText("not confirmed");
-  await expect(row.getByRole("switch")).not.toBeChecked();
+  // The failed save keeps the pending sold toggle in the draft.
+  await expect(row.getByRole("switch")).toBeChecked();
   state.fail = false;
   state.lost = true;
   [state.rows[1], state.rows[3]] = [state.rows[3], state.rows[1]];
-  await row.getByRole("switch").click();
+  await save.click();
+  await expect(row.getByText("Unsaved edits")).toHaveCount(0);
   await expect(row.getByRole("switch")).toBeChecked();
   expect(state.writes).toHaveLength(1);
   expect(state.rows[3][9]).toBe("draft");
@@ -285,10 +296,14 @@ test("invalid price blocks save and mobile controls fit screen", async ({
     name: "Order Older123",
     exact: true,
   });
+  const save = row.getByRole("button", { name: "Save order" });
+  await expect(save).toBeDisabled();
   await row.getByLabel("Price", { exact: true }).fill("-3");
-  await expect(row.getByRole("switch")).toBeDisabled();
+  await expect(save).toBeDisabled();
   await row.getByLabel("Price", { exact: true }).fill("0");
-  await expect(row.getByRole("switch")).toBeEnabled();
+  await expect(save).toBeEnabled();
+  await row.getByRole("switch").click();
+  await expect(save).toBeEnabled();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -330,7 +345,7 @@ test("sales channels are distinct across all rows and custom values become reusa
   expect(state.writes).toHaveLength(0);
   await select.selectOption("custom");
   await row.getByLabel("Custom sales channel", { exact: true }).fill("Direct");
-  await row.getByRole("switch").click();
+  await row.getByRole("button", { name: "Save order" }).click();
   await expect(select).toHaveValue("existing:Direct");
   expect(state.rows[1][11]).toBe("Direct");
   const other = page.getByRole("article", {
@@ -341,7 +356,8 @@ test("sales channels are distinct across all rows and custom values become reusa
     other.getByLabel("Sales channel", { exact: true }).locator("option"),
   ).toHaveText(["No sales channel", "Direct", "Market", "Web", "Custom…"]);
   await select.selectOption("");
-  await row.getByRole("switch").click();
+  await row.getByRole("button", { name: "Save order" }).click();
+  await expect(row.getByText("Unsaved edits")).toHaveCount(0);
   await expect(row.getByRole("switch")).not.toBeChecked();
   expect(state.rows[1][11]).toBe("");
 });
