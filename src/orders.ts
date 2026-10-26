@@ -12,9 +12,9 @@ export interface OrderDraft {
   orderComments: string;
   price: string;
   salesChannel: string;
+  saled: boolean;
 }
 export interface OrderRow extends SeriesRow, OrderDraft {
-  saled: boolean;
   saledAt: string;
   sheetRow: number;
   sourceCells: string[];
@@ -44,6 +44,7 @@ export function orderDraft(row: OrderRow): OrderDraft {
     orderComments: row.orderComments,
     price: row.price,
     salesChannel: row.salesChannel,
+    saled: row.saled,
   };
 }
 export function validateOrderDraft(draft: OrderDraft): string | null {
@@ -103,12 +104,12 @@ export function parseOrderRows(values: string[][]): {
       orderComments: cells[9] ?? "",
       price: cells[10] ?? "",
       salesChannel: cells[11] ?? "",
+      saled: status === "Y",
     });
     return [
       {
         ...base,
         ...draft,
-        saled: status === "Y",
         saledAt,
         sheetRow: i + 2,
         sourceCells: Array.from({ length: 14 }, (_, j) => cells[j] ?? ""),

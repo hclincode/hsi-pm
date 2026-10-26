@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { spreadsheetId } from "./models";
-import { loadOrders, toggleOrder, type OrderSnapshot } from "./orderStore";
+import { loadOrders, saveOrder, type OrderSnapshot } from "./orderStore";
 import {
   EMPTY_ORDER_FILTERS,
   filterOrders,
@@ -152,7 +152,7 @@ export default function OrdersManagement({
     });
     setNotice("");
   }
-  async function toggle(row: OrderRow) {
+  async function save(row: OrderRow) {
     if (!current || !snapshot || request.current) return;
     const draft = drafts[row.seriesNumber] ?? orderDraft(row);
     const invalid = validateOrderDraft(draft);
@@ -166,7 +166,7 @@ export default function OrdersManagement({
     setError("");
     setNotice("");
     try {
-      const saved = await toggleOrder(
+      const saved = await saveOrder(
         snapshot,
         row,
         draft,
@@ -368,7 +368,7 @@ export default function OrdersManagement({
               · Created oldest first
             </p>
             <p className="muted">
-              Edit a row, then toggle its sold status to save.{" "}
+              Edit a row and set its sold status, then save it.{" "}
               {dirty ? `${Object.keys(drafts).length} unsaved row(s).` : ""}
             </p>
           </div>
@@ -499,17 +499,24 @@ export default function OrdersManagement({
                         </p>
                       )}
                       <div className="order-actions">
+                        <span className="order-toggle">
+                          <button
+                            className={`switch ${draft.saled ? "on" : ""}`}
+                            role="switch"
+                            aria-checked={draft.saled}
+                            aria-label={`Sold status for ${row.seriesNumber}`}
+                            onClick={() => edit(row, { saled: !draft.saled })}
+                          >
+                            <span />
+                          </button>
+                          {draft.saled ? "Sold" : "Unsold"}
+                        </span>
                         <button
-                          className={row.saled ? "secondary" : "primary"}
-                          role="switch"
-                          aria-checked={row.saled}
-                          aria-label={`Sold status for ${row.seriesNumber}`}
-                          disabled={!!invalid}
-                          onClick={() => toggle(row)}
+                          className="primary"
+                          disabled={!!invalid || !drafts[row.seriesNumber]}
+                          onClick={() => save(row)}
                         >
-                          {row.saled
-                            ? "Mark unsold & save"
-                            : "Mark sold & save"}
+                          Save order
                         </button>
                         {drafts[row.seriesNumber] && (
                           <span className="muted">Unsaved edits</span>

@@ -1040,6 +1040,39 @@ footer {
 .order-actions .primary {
   flex: 0 0 auto;
 }
+.order-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3a503e;
+}
+.switch {
+  flex: 0 0 auto;
+  width: 72px;
+  min-height: 44px;
+  height: 44px;
+  padding: 4px;
+  border-radius: 22px;
+  background: #d9e0d5;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  transition: background 0.18s;
+}
+.switch.on {
+  background: #2b5239;
+  justify-content: flex-end;
+}
+.switch > span {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(35, 55, 44, 0.3);
+}
 .order-pagination {
   display: flex;
   align-items: center;
